@@ -1,0 +1,12 @@
+1
+00:00:00,000 --> 00:00:05,000
+I visited a bar in Kansas.
+
+2
+00:00:05,000 --> 00:00:10,000
+ At the entrance I see, "Welcome to the bar!" While leaving that place I see message, "Good night!".
+
+3
+00:00:10,000 --> 00:00:15,000
+ I wondered how they changed the name.
+
