@@ -8,4 +8,6 @@ install packages
 3. create output
 `npm start`
 
+you can flag `-l` to decrease the file size of the output video (takes longer)
+
 result is in outputs folder

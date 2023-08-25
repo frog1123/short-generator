@@ -14,7 +14,10 @@ fs.readFile('./config.json', 'utf8', (err, data) => {
   const str = obj['text'];
   const primaryColor = '&H03fcff';
 
-  // const delay = ms => new Promise(res => setTimeout(res, ms));
+  const args = process.argv.slice(2);
+  let useLib = false;
+  if (args[0] === '-l') useLib = true;
+
   const write = text => fs.writeFileSync(SUBTITLE_SOURCE, text, err => console.log(err));
   const secondsFormatted = sec => {
     const hours = Math.floor(sec / 3600);
@@ -28,8 +31,6 @@ fs.readFile('./config.json', 'utf8', (err, data) => {
 
     return `${formattedHours}:${formattedMinutes}:${formattedSeconds},${remainingMilliseconds}`;
   };
-
-  // const args = process.argv.slice(2);
 
   const generateSubtitles = async () => {
     const startTime = performance.now();
@@ -71,7 +72,7 @@ fs.readFile('./config.json', 'utf8', (err, data) => {
         -y \
         -i ${VIDEO_SOURCE} \
         -i ${AUDIO_SOURCE} \
-        -map 0:v:0 -map 1:a:0 \
+        -map 0:v:0 -map 1:a:0 ${useLib ? '-c:v libx265' : ''} \
         -vf "subtitles=${SUBTITLE_SOURCE}:force_style='Alignment=10,PrimaryColour=${primaryColor},Italic=1,Spacing=0.8'" \
         -t ${duration} \
         outputs/output.mp4`,
