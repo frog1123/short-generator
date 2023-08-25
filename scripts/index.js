@@ -1,6 +1,8 @@
 const fs = require('fs');
 const { exec } = require('child_process');
 const chalk = require('chalk');
+const gtts = require('better-node-gtts').default;
+const { performance } = require('perf_hooks');
 
 fs.readFile('./config.json', 'utf8', (err, data) => {
   if (err) console.log(`${chalk.red('✘')} ${err}`);
@@ -10,6 +12,7 @@ fs.readFile('./config.json', 'utf8', (err, data) => {
   const AUDIO_SOURCE = obj['audio_source'];
   const SUBTITLE_SOURCE = obj['subtitle_source'];
   const str = obj['text'];
+  const primaryColor = '&H03fcff';
 
   // const delay = ms => new Promise(res => setTimeout(res, ms));
   const write = text => fs.writeFileSync(SUBTITLE_SOURCE, text, err => console.log(err));
@@ -26,30 +29,39 @@ fs.readFile('./config.json', 'utf8', (err, data) => {
     return `${formattedHours}:${formattedMinutes}:${formattedSeconds},${remainingMilliseconds}`;
   };
 
-  const args = process.argv.slice(2);
-  if (args[0] !== 'subtitle' && args[0] !== 'create') {
-    console.log(`${chalk.red('✘')} Add subtitle or create to command (e.g. npm start subtitle)`);
-    return;
-  }
+  // const args = process.argv.slice(2);
 
-  if (args[0] === 'subtitle') {
+  const generateSubtitles = async () => {
+    const startTime = performance.now();
+
     var re = /(?<!\w\.\w.)(?<![A-Z]\.)(?<![A-Z][a-z]\.)(?<=\.|\?)/g;
     const splitText = str.split(re);
 
     let textToInsert = '';
     let prevCurrent = [];
     splitText.forEach((item, index) => {
-      const prevValue = index === 0 ? 0 : splitText[index - 1].length / 20;
-      if (index === 0) prevCurrent = [0, item.length / 20];
-      else prevCurrent = [prevCurrent[1], prevCurrent[1] + item.length / 20];
+      if (index === 0) prevCurrent = [0, item.length / 15];
+      else prevCurrent = [prevCurrent[1], prevCurrent[1] + item.length / 15];
       if (item[0] === ' ') item = item.substring(1);
 
       textToInsert += `${index + 1}\n${secondsFormatted(prevCurrent[0])} --> ${secondsFormatted(prevCurrent[1])}\n${item}\n\n`;
     });
     write(textToInsert);
-    console.log(`${chalk.green('✔')} generated srt file in ${SUBTITLE_SOURCE}`);
-  }
-  if (args[0] === 'create') {
+    const endTime = performance.now();
+
+    console.log(`${chalk.green('✔')} generated srt file in ${SUBTITLE_SOURCE} (${(endTime - startTime).toFixed(3)}ms)`);
+  };
+
+  const generateAudio = async () => {
+    const startTime = performance.now();
+    await gtts.save('audio/audio.mp3', str).then(() => {
+      const endTime = performance.now();
+      console.log(`${chalk.green('✔')} generated audio file in ${AUDIO_SOURCE} (${(endTime - startTime).toFixed(3)}ms)`);
+    });
+  };
+
+  const generateVideo = async () => {
+    const startTime = performance.now();
     var re = /(?<!\w\.\w.)(?<![A-Z]\.)(?<![A-Z][a-z]\.)(?<=\.|\?)/g;
     const splitText = str.split(re);
     const duration = splitText.length * 5 + 6;
@@ -60,12 +72,18 @@ fs.readFile('./config.json', 'utf8', (err, data) => {
         -i ${VIDEO_SOURCE} \
         -i ${AUDIO_SOURCE} \
         -map 0:v:0 -map 1:a:0 \
-        -vf "subtitles=${SUBTITLE_SOURCE}:force_style='Alignment=0,OutlineColour=&H100000000,BorderStyle=3,Outline=1,Shadow=0,Fontsize=18,MarginL=5,MarginV=25'" \
+        -vf "subtitles=${SUBTITLE_SOURCE}:force_style='Alignment=10,PrimaryColour=${primaryColor},Italic=1,Spacing=0.8'" \
         -t ${duration} \
         outputs/output.mp4`,
-      err => console.log(`${chalk.red('✘')} ${err}`)
+      err => {
+        const endTime = performance.now();
+        if (err === null) console.log(`${chalk.green('✔')} generated video file in ${VIDEO_SOURCE} (${(endTime - startTime).toFixed(3)}ms)`);
+        else console.log(`${chalk.red('✘')} ${err}`);
+      }
     );
-  }
+  };
 
-  console.log('Command-line arguments:', args);
+  generateSubtitles()
+    .then(() => generateAudio())
+    .then(() => generateVideo());
 });
