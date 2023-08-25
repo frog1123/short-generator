@@ -1,5 +1,5 @@
-audio/*
-outputs/*
-subtitles/*
-videos/*
+audio/*.mp3
+outputs/*.mp4
+subtitles/*.srt
+videos/*.mp4
 node_modules
