@@ -69,6 +69,8 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
     fs.readdir(AUDIO_OUTPUT, (err, files) => {
       if (err) throw err;
       for (const file of files) {
+        console.log(file);
+        if (!file.endsWith('.mp3')) return;
         fs.unlink(path.join(AUDIO_OUTPUT, file), err => {
           if (err) throw err;
         });
