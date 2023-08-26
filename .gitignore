@@ -4,3 +4,6 @@ subtitles/*.srt
 videos/*.mp4
 text/*.txt
 node_modules
+
+!text/text.txt
+!text/_.txt
