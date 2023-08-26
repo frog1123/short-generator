@@ -1,5 +1,7 @@
 <h1 align="center">short generator</h1>
 
+**dont touch audio and subtitles folder**
+
 install nodejs and ffmpeg
 install packages
 `npm install`
@@ -9,6 +11,6 @@ install packages
 3. create output
 `npm start`
 
-you can flag `-l` to decrease the file size of the output video (takes longer)
+you can use flag `-l`
 
 result is in outputs folder

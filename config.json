@@ -1,6 +1,6 @@
 {
   "video_source": "videos/video.mp4",
-  "audio_source": "audio/audio.mp3",
-  "subtitle_source": "subtitles/subtitle.srt",
+  "audio_output": "audio",
+  "subtitle_output": "subtitles",
   "text_source": "text/text.txt"
 }
