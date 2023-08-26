@@ -2,15 +2,26 @@
 
 **dont touch audio and subtitles folder**
 
-install nodejs and ffmpeg
+---
+<br>
+need nodejs and ffmpeg installed
+<br>
 install packages
+<br>
+
 `npm install`
 
-1. put a background video in the video folder
-2. set value for text in text.txt
-3. create output
+put a background video in the videos folder
+<br>
+put text in text/text.txt
+<br>
+generate video
+<br>
+
 `npm start`
 
-you can use flag `-l`
-
 result is in outputs folder
+
+---
+<br>
+you can use flag `-l`
