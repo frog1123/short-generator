@@ -2,5 +2,7 @@
   "video_source": "videos/video.mp4",
   "audio_output": "audio",
   "subtitle_output": "subtitles",
-  "text_source": "text/text.txt"
+  "text_source": "text/text.txt",
+  "text_color": "#fcfc71",
+  "tempo": "1.5"
 }

@@ -51,7 +51,13 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
   const SUBTITLE_OUTPUT = obj['subtitle_output'];
   const TEXT_SOURCE = obj['text_source'];
   const OUTPUT_SOURCE = 'outputs/output.mp4';
-  const textColor = '&H03fcff';
+  const tempo = obj['tempo'];
+
+  let preTextColor = obj['text_color'];
+  preTextColor = preTextColor.slice(1);
+  const textColor = `&H${preTextColor[4]}${preTextColor[5]}${preTextColor[2]}${preTextColor[3]}${preTextColor[0]}${preTextColor[1]}`;
+
+  // &H blue green red
 
   const args = process.argv.slice(2);
   let useLib = false;
@@ -84,52 +90,55 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
 
       splitText.forEach(async (item, index) => {
         await gtts.save(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`, item);
-        const buffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`);
-        const duration = getMP3Duration(buffer);
+        exec(`ffmpeg -i ${AUDIO_OUTPUT}/audio_${index + 1}.mp3 -filter:a "atempo=${tempo}" ${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`, err => {
+          if (err !== null) console.log(`${chalk.red('✘')} ${err}`);
+          const buffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`);
+          const duration = getMP3Duration(buffer);
 
-        audioDurations[(index + 1).toString()] = duration;
-        if (Object.keys(audioDurations).length === splitText.length) {
-          let textToInsert = '';
-          let prevCurrent = [];
-          for (i = 0; i < splitText.length; i++) {
-            if (i === 0) prevCurrent = [0, audioDurations[(i + 1).toString()] / 1000];
-            else prevCurrent = [prevCurrent[1], prevCurrent[1] + audioDurations[(i + 1).toString()] / 1000];
-            totalDuration = prevCurrent[1] + 1.5;
+          audioDurations[(index + 1).toString()] = duration;
+          if (Object.keys(audioDurations).length === splitText.length) {
+            let textToInsert = '';
+            let prevCurrent = [];
+            for (i = 0; i < splitText.length; i++) {
+              if (i === 0) prevCurrent = [0, audioDurations[(i + 1).toString()] / 1000];
+              else prevCurrent = [prevCurrent[1], prevCurrent[1] + audioDurations[(i + 1).toString()] / 1000];
+              totalDuration = prevCurrent[1] + 1.5;
 
-            textToInsert += `${i + 1}\n${secondsFormatted(prevCurrent[0])} --> ${secondsFormatted(prevCurrent[1])}\n${splitText[i]}\n\n`;
-          }
-          write(textToInsert, SUBTITLE_OUTPUT);
+              textToInsert += `${i + 1}\n${secondsFormatted(prevCurrent[0])} --> ${secondsFormatted(prevCurrent[1])}\n${splitText[i]}\n\n`;
+            }
+            write(textToInsert, SUBTITLE_OUTPUT);
 
-          let audioFileList = '';
-          for (i = 0; i < splitText.length; i++) audioFileList += `-i ${AUDIO_OUTPUT}/audio_${i + 1}.mp3 `;
+            let audioFileList = '';
+            for (i = 0; i < splitText.length; i++) audioFileList += `-i ${AUDIO_OUTPUT}/audio_m${i + 1}.mp3 `;
 
-          exec(`ffmpeg ${audioFileList}-filter_complex "[0:a][1:a]concat=n=${splitText.length}:v=0:a=1[outa]" -map "[outa]" ${AUDIO_OUTPUT}/audio_final.mp3`, err => {
-            if (err) console.log(`${chalk.red('✘')} ${err}`);
-            exec(
-              `ffmpeg \
-                -y \
-                -i ${VIDEO_SOURCE} \
-                -i ${AUDIO_OUTPUT}/audio_final.mp3 \
-                -map 0:v:0 -map 1:a:0 ${useLib ? '-c:v libx265' : ''} \
-                -vf "subtitles=${`${SUBTITLE_OUTPUT}/subtitles.srt`}:force_style='Alignment=10,PrimaryColour=${textColor},Italic=1,Spacing=0.8'" \
-                -t ${totalDuration} \
-                ${OUTPUT_SOURCE}`,
-              err => {
-                if (err !== null) {
-                  console.log(`${chalk.red('✘')} ${err}`);
-                  return;
+            exec(`ffmpeg ${audioFileList}-filter_complex "[0:a][1:a]concat=n=${splitText.length}:v=0:a=1[outa]" -map "[outa]" ${AUDIO_OUTPUT}/audio_final.mp3`, err => {
+              if (err) console.log(`${chalk.red('✘')} ${err}`);
+              exec(
+                `ffmpeg \
+                  -y \
+                  -i ${VIDEO_SOURCE} \
+                  -i ${AUDIO_OUTPUT}/audio_final.mp3 \
+                  -map 0:v:0 -map 1:a:0 ${useLib ? '-c:v libx265' : ''} \
+                  -vf "subtitles=${`${SUBTITLE_OUTPUT}/subtitles.srt`}:force_style='Alignment=10,PrimaryColour=${textColor},Italic=1,Spacing=0.8'" \
+                  -t ${totalDuration} \
+                  ${OUTPUT_SOURCE}`,
+                err => {
+                  if (err !== null) {
+                    console.log(`${chalk.red('✘')} ${err}`);
+                    return;
+                  }
+                  const endTime = performance.now();
+                  fs.stat(VIDEO_SOURCE, (err, stats) => {
+                    done = true;
+                    process.stdout.write(`\r${chalk.green('✔')} generated output to ${OUTPUT_SOURCE} in ${((endTime - startTime) / 1000).toFixed(3)}s (${formatBytes(stats.size)})`);
+                    console.log('');
+                    process.exit();
+                  });
                 }
-                const endTime = performance.now();
-                fs.stat(VIDEO_SOURCE, (err, stats) => {
-                  done = true;
-                  process.stdout.write(`\r${chalk.green('✔')} generated output to ${OUTPUT_SOURCE} in ${((endTime - startTime) / 1000).toFixed(3)}s (${formatBytes(stats.size)})`);
-                  console.log('');
-                  process.exit();
-                });
-              }
-            );
-          });
-        }
+              );
+            });
+          }
+        });
       });
     });
   };
