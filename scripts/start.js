@@ -70,13 +70,18 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
     });
 
     fs.readFile(TEXT_SOURCE, 'utf8', async (err, data) => {
-      var re = /(?<!\w\.\w.)(?<![A-Z]\.)(?<![A-Z][a-z]\.)(?<=\.|\?)/g;
-      const splitText = data.split(re);
+      const startTime = performance.now();
+      // const regex = /(?<!\w\.\w.)(?<![A-Z]\.)(?<![A-Z][a-z]\.)(?<=\.|\?)/g;
+      const regex = /(?<=\w[.!?])\s+(?=\w)|(?<=\w[.!?])\s*$|(?<=\w,)\s+|(?<=\w,)\s*$/;
+      const splitText = data.split(regex);
+
+      for (let i = 0; i < splitText.length; i++) {
+        splitText[i] = splitText[i].replace(/^\s+/g, '').replace(/[.,]/g, '');
+      }
 
       let audioDurations = {};
       let totalDuration;
 
-      const startTime = performance.now();
       splitText.forEach(async (item, index) => {
         await gtts.save(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`, item);
         const buffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`);
