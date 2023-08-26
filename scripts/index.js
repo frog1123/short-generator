@@ -24,7 +24,7 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
   if (args[0] === '-l') useLib = true;
   if (args[0] === '-sd') subtitleDebug = true;
 
-  const write = text => fs.writeFileSync(SUBTITLE_SOURCE, text, err => console.log(err));
+  const write = text => fs.writeFileSync(SUBTITLE_SOURCE, text, err => console.log(`${chalk.red('✘')} ${err}`));
   const secondsFormatted = sec => {
     const hours = Math.floor(sec / 3600);
     const minutes = Math.floor((sec % 3600) / 60);

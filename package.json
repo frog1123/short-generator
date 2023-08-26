@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node scripts/index.js"
+    "start": "node scripts/index.js",
+    "test": "node scripts/test.js"
   },
   "keywords": [],
   "author": "",
@@ -12,6 +13,7 @@
   "dependencies": {
     "better-node-gtts": "^1.1.0",
     "chalk": "^4.1.2",
+    "get-mp3-duration": "^1.0.0",
     "perf_hooks": "^0.0.1"
   }
 }
