@@ -2,4 +2,5 @@ audio/*.mp3
 outputs/*.mp4
 subtitles/*.srt
 videos/*.mp4
+text/*.txt
 node_modules
