@@ -8,11 +8,13 @@ const getMP3Duration = require('get-mp3-duration');
 
 let done = false;
 const loadingMessage = () => {
+  const startTime = performance.now();
   const P = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
   let x = 0;
   setInterval(() => {
     if (done) return;
-    process.stdout.write(`${'\r' + chalk.blue(P[x++])} generating your video`);
+    const endTime = performance.now();
+    process.stdout.write(`${'\r' + chalk.blue(P[x++])} generating your video (${((endTime - startTime) / 1000).toFixed(3)}s)`);
     x = x % P.length;
   }, 50);
 };
