@@ -100,12 +100,13 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
       let audioDurations = {};
       let totalDuration;
 
+      await gtts.save(`${AUDIO_OUTPUT}/audio_p.mp3`, data);
       splitText.forEach(async (item, index) => {
         await gtts.save(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`, item);
-        // const preBuffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`);
-        // const preDuration = getMP3Duration(preBuffer);
-
-        exec(`ffmpeg -i ${AUDIO_OUTPUT}/audio_${index + 1}.mp3 -filter:a "atempo=${tempo}" ${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`, err => {
+        const preBuffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`);
+        const preDuration = getMP3Duration(preBuffer);
+        // --
+        exec(`ffmpeg -i ${AUDIO_OUTPUT}/audio_${index + 1}.mp3 -filter:a "atempo=${tempo * 1.2}" -t ${preDuration / 1000} ${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`, err => {
           if (err !== null) console.log(`${chalk.red('✘')} ${err}`);
           const buffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`);
           const duration = getMP3Duration(buffer);
@@ -126,7 +127,9 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
             let audioFileList = '';
             for (i = 0; i < splitText.length; i++) audioFileList += `-i ${AUDIO_OUTPUT}/audio_m${i + 1}.mp3 `;
 
-            exec(`ffmpeg ${audioFileList}-filter_complex "[0:a][1:a]concat=n=${splitText.length}:v=0:a=1[outa]" -map "[outa]" ${AUDIO_OUTPUT}/audio_final.mp3`, err => {
+            // ffmpeg ${audioFileList}-filter_complex "[0:a][1:a]concat=n=${splitText.length}:v=0:a=1[outa]" -map "[outa]" ${AUDIO_OUTPUT}/audio_final.mp3
+
+            exec(`ffmpeg -i ${AUDIO_OUTPUT}/audio_p.mp3 -filter:a "atempo=${tempo}" ${AUDIO_OUTPUT}/audio_final.mp3`, err => {
               if (err) console.log(`${chalk.red('✘')} ${err}`);
 
               const generateVideo = () =>
@@ -155,7 +158,6 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
                 );
 
               if (useSar || video_offset > 0) {
-                console.log('asdddd');
                 fs.readdir(OUTPUT_SOURCE, (err, files) => {
                   if (err) throw err;
                   for (const file of files) {
