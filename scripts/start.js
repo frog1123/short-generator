@@ -97,8 +97,6 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
         if (words.length > 30) maxWords = Math.ceil(words.length / 5);
         if (words.length > 40) maxWords = Math.ceil(words.length / 6);
 
-        console.log(words.length);
-
         for (let j = 0; j < words.length; j += 5) {
           let group = words.slice(j, j + 5).join(' ');
           if (group[0] === ' ') group = group.substring(1);
@@ -112,36 +110,42 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
 
       splitText.forEach(async (item, index) => {
         await gtts.save(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`, item);
-        const preBuffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`);
-        const preDuration = getMP3Duration(preBuffer);
         // --
-        exec(`ffmpeg -i ${AUDIO_OUTPUT}/audio_${index + 1}.mp3 -filter:a "atempo=${tempo}" -t ${preDuration / 1000} ${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`, err => {
-          if (err !== null) console.log(`${chalk.red('✘')} ${err}`);
-          const buffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`);
-          const duration = getMP3Duration(buffer);
+        exec(
+          `ffmpeg \
+            -i ${AUDIO_OUTPUT}/audio_${index + 1}.mp3 \
+            -af "atempo=${tempo},areverse,atrim=start=0,silenceremove=start_periods=1:start_silence=0.1:start_threshold=0.02,areverse,atrim=start=0,silenceremove=start_periods=1:start_silence=0.1:start_threshold=0.02" \
+            ${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`,
+          err => {
+            if (err !== null) console.log(`${chalk.red('✘')} ${err}`);
+            const buffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`);
+            const duration = getMP3Duration(buffer);
 
-          audioDurations[(index + 1).toString()] = duration;
-          if (Object.keys(audioDurations).length === splitText.length) {
-            let textToInsert = '';
-            let prevCurrent = [];
-            for (i = 0; i < splitText.length; i++) {
-              if (i === 0) prevCurrent = [0.05, audioDurations[(i + 1).toString()] / 1000];
-              else prevCurrent = [prevCurrent[1], prevCurrent[1] + audioDurations[(i + 1).toString()] / 1000];
-              totalDuration = prevCurrent[1] + 0.5;
+            audioDurations[(index + 1).toString()] = duration;
+            if (Object.keys(audioDurations).length === splitText.length) {
+              let textToInsert = '';
+              let prevCurrent = [];
+              for (i = 0; i < splitText.length; i++) {
+                if (i === 0) prevCurrent = [0.05, (audioDurations[(i + 1).toString()] / 1000) * 0.935];
+                else prevCurrent = [prevCurrent[1], prevCurrent[1] + (audioDurations[(i + 1).toString()] / 1000) * 0.935];
 
-              textToInsert += `${i + 1}\n${secondsFormatted(prevCurrent[0])} --> ${secondsFormatted(prevCurrent[1])}\n${splitText[i]}\n\n`;
-            }
-            write(textToInsert, SUBTITLE_OUTPUT);
+                console.log(i, prevCurrent, audioDurations[(i + 1).toString()] / 1000);
 
-            let audioFileList = '';
-            for (i = 0; i < splitText.length; i++) audioFileList += `-i ${AUDIO_OUTPUT}/audio_m${i + 1}.mp3 `;
+                totalDuration = prevCurrent[1] + 0.5;
 
-            exec(`ffmpeg ${audioFileList}-filter_complex "[0:a][1:a]concat=n=${splitText.length}:v=0:a=1[outa]" -map "[outa]" ${AUDIO_OUTPUT}/audio_final.mp3`, err => {
-              if (err) console.log(`${chalk.red('✘')} ${err}`);
+                textToInsert += `${i + 1}\n${secondsFormatted(prevCurrent[0])} --> ${secondsFormatted(prevCurrent[1])}\n${splitText[i]}\n\n`;
+              }
+              write(textToInsert, SUBTITLE_OUTPUT);
 
-              const generateVideo = () =>
-                exec(
-                  `ffmpeg \
+              let audioFileList = '';
+              for (i = 0; i < splitText.length; i++) audioFileList += `-i ${AUDIO_OUTPUT}/audio_m${i + 1}.mp3 `;
+
+              exec(`ffmpeg ${audioFileList}-filter_complex "[0:a][1:a]concat=n=${splitText.length}:v=0:a=1[outa]" -map "[outa]" ${AUDIO_OUTPUT}/audio_final.mp3`, err => {
+                if (err) console.log(`${chalk.red('✘')} ${err}`);
+
+                const generateVideo = () =>
+                  exec(
+                    `ffmpeg \
                     -y \
                     -i ${useSar || video_offset > 0 ? `${OUTPUT_SOURCE}/output_1.mp4` : VIDEO_SOURCE} \
                     -i ${AUDIO_OUTPUT}/audio_final.mp3 \
@@ -149,40 +153,41 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
                     -vf "subtitles=${`${SUBTITLE_OUTPUT}/subtitles.srt`}:force_style='Alignment=10,PrimaryColour=${textColor},Italic=1,Spacing=0.8'" \
                     -t ${totalDuration} \
                     ${OUTPUT_SOURCE}/output.mp4`,
-                  err => {
-                    if (err !== null) {
-                      console.log(`${chalk.red('✘')} ${err}`);
-                      return;
+                    err => {
+                      if (err !== null) {
+                        console.log(`${chalk.red('✘')} ${err}`);
+                        return;
+                      }
+                      const endTime = performance.now();
+                      fs.stat(`${OUTPUT_SOURCE}/output.mp4`, (err, stats) => {
+                        done = true;
+                        process.stdout.write(`\r${chalk.green('✔')} generated output to ${OUTPUT_SOURCE}/output.mp4 in ${((endTime - startTime) / 1000).toFixed(3)}s (${formatBytes(stats.size)})`);
+                        console.log('');
+                        process.exit();
+                      });
                     }
-                    const endTime = performance.now();
-                    fs.stat(`${OUTPUT_SOURCE}/output.mp4`, (err, stats) => {
-                      done = true;
-                      process.stdout.write(`\r${chalk.green('✔')} generated output to ${OUTPUT_SOURCE}/output.mp4 in ${((endTime - startTime) / 1000).toFixed(3)}s (${formatBytes(stats.size)})`);
-                      console.log('');
-                      process.exit();
-                    });
-                  }
-                );
+                  );
 
-              if (useSar || video_offset > 0) {
-                fs.readdir(OUTPUT_SOURCE, (err, files) => {
-                  if (err) throw err;
-                  for (const file of files) {
-                    if (!file.endsWith('.mp4')) return;
-                    fs.unlink(path.join(OUTPUT_SOURCE, file), err => {
-                      if (err) throw err;
-                    });
-                  }
-                });
-                exec(`ffmpeg -i ${VIDEO_SOURCE}${useSar ? ' -vf crop=607.50:1080:656.25:0' : ''} -ss ${video_offset} -t ${totalDuration} ${OUTPUT_SOURCE}/output_1.mp4 `, err => {
+                if (useSar || video_offset > 0) {
+                  fs.readdir(OUTPUT_SOURCE, (err, files) => {
+                    if (err) throw err;
+                    for (const file of files) {
+                      if (!file.endsWith('.mp4')) return;
+                      fs.unlink(path.join(OUTPUT_SOURCE, file), err => {
+                        if (err) throw err;
+                      });
+                    }
+                  });
+                  exec(`ffmpeg -i ${VIDEO_SOURCE}${useSar ? ' -vf crop=607.50:1080:656.25:0' : ''} -ss ${video_offset} -t ${totalDuration} ${OUTPUT_SOURCE}/output_1.mp4 `, err => {
+                    generateVideo();
+                  });
+                } else {
                   generateVideo();
-                });
-              } else {
-                generateVideo();
-              }
-            });
+                }
+              });
+            }
           }
-        });
+        );
       });
     });
   };

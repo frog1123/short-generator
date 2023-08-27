@@ -1,10 +1,10 @@
 {
-  "video_source": "videos/video2.mp4",
+  "video_source": "videos/video.mp4",
   "audio_output": "audio",
   "subtitle_output": "subtitles",
   "text_source": "text/text.txt",
   "output_source": "outputs",
   "text_color": "#fcfc71",
-  "video_offset": "400",
+  "video_offset": "0",
   "tempo": "1.5"
 }
