@@ -51,6 +51,7 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
   const SUBTITLE_OUTPUT = obj['subtitle_output'];
   const TEXT_SOURCE = obj['text_source'];
   const OUTPUT_SOURCE = obj['output_source'];
+  const video_offset = parseFloat(obj['video_offset']);
   const tempo = obj['tempo'];
 
   let preTextColor = obj['text_color'];
@@ -79,12 +80,21 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
     });
 
     fs.readFile(TEXT_SOURCE, 'utf8', async (err, data) => {
-      // const regex = /(?<!\w\.\w.)(?<![A-Z]\.)(?<![A-Z][a-z]\.)(?<=\.|\?)/g;
-      const regex = /(?<=\w[.!?])\s+(?=\w)|(?<=\w[.!?])\s*$|(?<=\w,)\s+|(?<=\w,)\s*$/;
-      const splitText = data.split(regex);
+      const regex = /(?<!\w\.\w.)(?<![A-Z]\.)(?<![A-Z][a-z]\.)(?<=\.|\?)/g;
+      // const regex = /(?<=\w[.!?])\s+(?=\w)|(?<=\w[.!?])\s*$|(?<=\w,)\s+|(?<=\w,)\s*$/;
+      let preSplitText = data.split(regex);
+      let splitText = [];
 
-      for (let i = 0; i < splitText.length; i++) {
-        splitText[i] = splitText[i].replace(/^\s+/g, '').replace(/[.,]/g, '');
+      for (let i = 0; i < preSplitText.length; i++) {
+        preSplitText[i] = preSplitText[i].replace(/[,.]/g, '').replace(/\r?\n/g, ' ');
+        const words = preSplitText[i].split(' ');
+        const groups = [];
+        for (let j = 0; j < words.length; j += 5) {
+          let group = words.slice(j, j + 5).join(' ');
+          if (group[0] === ' ') group = group.substring(1);
+          if (group !== '') groups.push(group);
+        }
+        splitText.push(...groups);
       }
 
       let audioDurations = {};
@@ -92,6 +102,9 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
 
       splitText.forEach(async (item, index) => {
         await gtts.save(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`, item);
+        // const preBuffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`);
+        // const preDuration = getMP3Duration(preBuffer);
+
         exec(`ffmpeg -i ${AUDIO_OUTPUT}/audio_${index + 1}.mp3 -filter:a "atempo=${tempo}" ${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`, err => {
           if (err !== null) console.log(`${chalk.red('✘')} ${err}`);
           const buffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`);
@@ -102,9 +115,9 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
             let textToInsert = '';
             let prevCurrent = [];
             for (i = 0; i < splitText.length; i++) {
-              if (i === 0) prevCurrent = [0, audioDurations[(i + 1).toString()] / 1000];
-              else prevCurrent = [prevCurrent[1], prevCurrent[1] + audioDurations[(i + 1).toString()] / 1000];
-              totalDuration = prevCurrent[1] + 1.5;
+              if (i === 0) prevCurrent = [0.05, audioDurations[(i + 1).toString()] / 1000 - 0.05];
+              else prevCurrent = [prevCurrent[1], prevCurrent[1] + audioDurations[(i + 1).toString()] / 1000 - 0.05];
+              totalDuration = prevCurrent[1] + 0.5;
 
               textToInsert += `${i + 1}\n${secondsFormatted(prevCurrent[0])} --> ${secondsFormatted(prevCurrent[1])}\n${splitText[i]}\n\n`;
             }
@@ -119,13 +132,13 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
               const generateVideo = () =>
                 exec(
                   `ffmpeg \
-                -y \
-                -i ${OUTPUT_SOURCE}/output_1.mp4 \
-                -i ${AUDIO_OUTPUT}/audio_final.mp3 \
-                -map 0:v:0 -map 1:a:0 ${useLib ? '-c:v libx265' : ''} \
-                -vf "subtitles=${`${SUBTITLE_OUTPUT}/subtitles.srt`}:force_style='Alignment=10,PrimaryColour=${textColor},Italic=1,Spacing=0.8'" \
-                -t ${totalDuration} \
-                ${OUTPUT_SOURCE}/output.mp4`,
+                    -y \
+                    -i ${useSar || video_offset > 0 ? `${OUTPUT_SOURCE}/output_1.mp4` : VIDEO_SOURCE} \
+                    -i ${AUDIO_OUTPUT}/audio_final.mp3 \
+                    -map 0:v:0 -map 1:a:0 ${useLib ? '-c:v libx265' : ''} \
+                    -vf "subtitles=${`${SUBTITLE_OUTPUT}/subtitles.srt`}:force_style='Alignment=10,PrimaryColour=${textColor},Italic=1,Spacing=0.8'" \
+                    -t ${totalDuration} \
+                    ${OUTPUT_SOURCE}/output.mp4`,
                   err => {
                     if (err !== null) {
                       console.log(`${chalk.red('✘')} ${err}`);
@@ -141,7 +154,8 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
                   }
                 );
 
-              if (useSar) {
+              if (useSar || video_offset > 0) {
+                console.log('asdddd');
                 fs.readdir(OUTPUT_SOURCE, (err, files) => {
                   if (err) throw err;
                   for (const file of files) {
@@ -151,10 +165,12 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
                     });
                   }
                 });
-                exec(`ffmpeg  -i ${VIDEO_SOURCE} -vf "crop=607.50:1080:656.25:0" -t ${totalDuration} outputs/output_1.mp4 `, err => {
+                exec(`ffmpeg -i ${VIDEO_SOURCE}${useSar ? ' -vf crop=607.50:1080:656.25:0' : ''} -ss ${video_offset} -t ${totalDuration} ${OUTPUT_SOURCE}/output_1.mp4 `, err => {
                   generateVideo();
                 });
-              } else generateVideo();
+              } else {
+                generateVideo();
+              }
             });
           }
         });
