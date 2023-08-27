@@ -89,6 +89,16 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
         preSplitText[i] = preSplitText[i].replace(/[,.]/g, '').replace(/\r?\n/g, ' ');
         const words = preSplitText[i].split(' ');
         const groups = [];
+
+        let maxWords = words.length;
+        if (words.length > 8) maxWords = Math.ceil(words.length / 2);
+        if (words.length > 15) maxWords = Math.ceil(words.length / 3);
+        if (words.length > 20) maxWords = Math.ceil(words.length / 4);
+        if (words.length > 30) maxWords = Math.ceil(words.length / 5);
+        if (words.length > 40) maxWords = Math.ceil(words.length / 6);
+
+        console.log(words.length);
+
         for (let j = 0; j < words.length; j += 5) {
           let group = words.slice(j, j + 5).join(' ');
           if (group[0] === ' ') group = group.substring(1);
@@ -100,13 +110,12 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
       let audioDurations = {};
       let totalDuration;
 
-      await gtts.save(`${AUDIO_OUTPUT}/audio_p.mp3`, data);
       splitText.forEach(async (item, index) => {
         await gtts.save(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`, item);
         const preBuffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_${index + 1}.mp3`);
         const preDuration = getMP3Duration(preBuffer);
         // --
-        exec(`ffmpeg -i ${AUDIO_OUTPUT}/audio_${index + 1}.mp3 -filter:a "atempo=${tempo * 1.2}" -t ${preDuration / 1000} ${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`, err => {
+        exec(`ffmpeg -i ${AUDIO_OUTPUT}/audio_${index + 1}.mp3 -filter:a "atempo=${tempo}" -t ${preDuration / 1000} ${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`, err => {
           if (err !== null) console.log(`${chalk.red('✘')} ${err}`);
           const buffer = fs.readFileSync(`${AUDIO_OUTPUT}/audio_m${index + 1}.mp3`);
           const duration = getMP3Duration(buffer);
@@ -116,8 +125,8 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
             let textToInsert = '';
             let prevCurrent = [];
             for (i = 0; i < splitText.length; i++) {
-              if (i === 0) prevCurrent = [0.05, audioDurations[(i + 1).toString()] / 1000 - 0.05];
-              else prevCurrent = [prevCurrent[1], prevCurrent[1] + audioDurations[(i + 1).toString()] / 1000 - 0.05];
+              if (i === 0) prevCurrent = [0.05, audioDurations[(i + 1).toString()] / 1000];
+              else prevCurrent = [prevCurrent[1], prevCurrent[1] + audioDurations[(i + 1).toString()] / 1000];
               totalDuration = prevCurrent[1] + 0.5;
 
               textToInsert += `${i + 1}\n${secondsFormatted(prevCurrent[0])} --> ${secondsFormatted(prevCurrent[1])}\n${splitText[i]}\n\n`;
@@ -127,9 +136,7 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
             let audioFileList = '';
             for (i = 0; i < splitText.length; i++) audioFileList += `-i ${AUDIO_OUTPUT}/audio_m${i + 1}.mp3 `;
 
-            // ffmpeg ${audioFileList}-filter_complex "[0:a][1:a]concat=n=${splitText.length}:v=0:a=1[outa]" -map "[outa]" ${AUDIO_OUTPUT}/audio_final.mp3
-
-            exec(`ffmpeg -i ${AUDIO_OUTPUT}/audio_p.mp3 -filter:a "atempo=${tempo}" ${AUDIO_OUTPUT}/audio_final.mp3`, err => {
+            exec(`ffmpeg ${audioFileList}-filter_complex "[0:a][1:a]concat=n=${splitText.length}:v=0:a=1[outa]" -map "[outa]" ${AUDIO_OUTPUT}/audio_final.mp3`, err => {
               if (err) console.log(`${chalk.red('✘')} ${err}`);
 
               const generateVideo = () =>
