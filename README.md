@@ -24,4 +24,8 @@ result is in outputs folder
 
 ---
 <br>
-you can use flag `-l`
+flags
+
+`-l` - smaller file size, longer render time
+<br>
+`-sar` - uses short aspect ratio, longer render time (just use a short aspect ratio video to avoid this)

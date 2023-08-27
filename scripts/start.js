@@ -7,14 +7,14 @@ const path = require('path');
 const getMP3Duration = require('get-mp3-duration');
 
 let done = false;
-const loadingMessage = () => {
+const loadingMessage = args => {
   const startTime = performance.now();
   const P = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
   let x = 0;
   setInterval(() => {
     if (done) return;
     const endTime = performance.now();
-    process.stdout.write(`${'\r' + chalk.blue(P[x++])} generating your video (${((endTime - startTime) / 1000).toFixed(3)}s)`);
+    process.stdout.write(`${'\r' + chalk.blue(P[x++])} generating your video ${args.length > 0 ? `[flags: ${args}]` : ''} (${((endTime - startTime) / 1000).toFixed(3)}s)`);
     x = x % P.length;
   }, 50);
 };
@@ -50,26 +50,27 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
   const AUDIO_OUTPUT = obj['audio_output'];
   const SUBTITLE_OUTPUT = obj['subtitle_output'];
   const TEXT_SOURCE = obj['text_source'];
-  const OUTPUT_SOURCE = 'outputs/output.mp4';
+  const OUTPUT_SOURCE = obj['output_source'];
   const tempo = obj['tempo'];
 
   let preTextColor = obj['text_color'];
   preTextColor = preTextColor.slice(1);
   const textColor = `&H${preTextColor[4]}${preTextColor[5]}${preTextColor[2]}${preTextColor[3]}${preTextColor[0]}${preTextColor[1]}`;
-
   // &H blue green red
 
   const args = process.argv.slice(2);
   let useLib = false;
-  if (args[0] === '-l') useLib = true;
+  let useSar = false;
+  if (args.includes('-l')) useLib = true;
+  if (args.includes('-sar')) useSar = true;
 
-  const generateVideo = () => {
-    loadingMessage();
+  const generate = () => {
+    const startTime = performance.now();
+    loadingMessage(args);
 
     fs.readdir(AUDIO_OUTPUT, (err, files) => {
       if (err) throw err;
       for (const file of files) {
-        console.log(file);
         if (!file.endsWith('.mp3')) return;
         fs.unlink(path.join(AUDIO_OUTPUT, file), err => {
           if (err) throw err;
@@ -78,7 +79,6 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
     });
 
     fs.readFile(TEXT_SOURCE, 'utf8', async (err, data) => {
-      const startTime = performance.now();
       // const regex = /(?<!\w\.\w.)(?<![A-Z]\.)(?<![A-Z][a-z]\.)(?<=\.|\?)/g;
       const regex = /(?<=\w[.!?])\s+(?=\w)|(?<=\w[.!?])\s*$|(?<=\w,)\s+|(?<=\w,)\s*$/;
       const splitText = data.split(regex);
@@ -115,29 +115,46 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
 
             exec(`ffmpeg ${audioFileList}-filter_complex "[0:a][1:a]concat=n=${splitText.length}:v=0:a=1[outa]" -map "[outa]" ${AUDIO_OUTPUT}/audio_final.mp3`, err => {
               if (err) console.log(`${chalk.red('✘')} ${err}`);
-              exec(
-                `ffmpeg \
-                  -y \
-                  -i ${VIDEO_SOURCE} \
-                  -i ${AUDIO_OUTPUT}/audio_final.mp3 \
-                  -map 0:v:0 -map 1:a:0 ${useLib ? '-c:v libx265' : ''} \
-                  -vf "subtitles=${`${SUBTITLE_OUTPUT}/subtitles.srt`}:force_style='Alignment=10,PrimaryColour=${textColor},Italic=1,Spacing=0.8'" \
-                  -t ${totalDuration} \
-                  ${OUTPUT_SOURCE}`,
-                err => {
-                  if (err !== null) {
-                    console.log(`${chalk.red('✘')} ${err}`);
-                    return;
+
+              const generateVideo = () =>
+                exec(
+                  `ffmpeg \
+                -y \
+                -i ${OUTPUT_SOURCE}/output_1.mp4 \
+                -i ${AUDIO_OUTPUT}/audio_final.mp3 \
+                -map 0:v:0 -map 1:a:0 ${useLib ? '-c:v libx265' : ''} \
+                -vf "subtitles=${`${SUBTITLE_OUTPUT}/subtitles.srt`}:force_style='Alignment=10,PrimaryColour=${textColor},Italic=1,Spacing=0.8'" \
+                -t ${totalDuration} \
+                ${OUTPUT_SOURCE}/output.mp4`,
+                  err => {
+                    if (err !== null) {
+                      console.log(`${chalk.red('✘')} ${err}`);
+                      return;
+                    }
+                    const endTime = performance.now();
+                    fs.stat(`${OUTPUT_SOURCE}/output.mp4`, (err, stats) => {
+                      done = true;
+                      process.stdout.write(`\r${chalk.green('✔')} generated output to ${OUTPUT_SOURCE}/output.mp4 in ${((endTime - startTime) / 1000).toFixed(3)}s (${formatBytes(stats.size)})`);
+                      console.log('');
+                      process.exit();
+                    });
                   }
-                  const endTime = performance.now();
-                  fs.stat(VIDEO_SOURCE, (err, stats) => {
-                    done = true;
-                    process.stdout.write(`\r${chalk.green('✔')} generated output to ${OUTPUT_SOURCE} in ${((endTime - startTime) / 1000).toFixed(3)}s (${formatBytes(stats.size)})`);
-                    console.log('');
-                    process.exit();
-                  });
-                }
-              );
+                );
+
+              if (useSar) {
+                fs.readdir(OUTPUT_SOURCE, (err, files) => {
+                  if (err) throw err;
+                  for (const file of files) {
+                    if (!file.endsWith('.mp4')) return;
+                    fs.unlink(path.join(OUTPUT_SOURCE, file), err => {
+                      if (err) throw err;
+                    });
+                  }
+                });
+                exec(`ffmpeg  -i ${VIDEO_SOURCE} -vf "crop=607.50:1080:656.25:0" -t ${totalDuration} outputs/output_1.mp4 `, err => {
+                  generateVideo();
+                });
+              } else generateVideo();
             });
           }
         });
@@ -145,5 +162,5 @@ fs.readFile('./config.json', 'utf8', async (err, data) => {
     });
   };
 
-  generateVideo();
+  generate();
 });
